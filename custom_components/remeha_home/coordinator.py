@@ -1,12 +1,13 @@
 """Coordinator for fetching the Remeha Home data."""
+
 from datetime import datetime, timedelta
 import logging
 
-import async_timeout
+import asyncio
 from aiohttp.client_exceptions import ClientResponseError
 
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.typing import HomeAssistantType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
@@ -19,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 class RemehaHomeUpdateCoordinator(DataUpdateCoordinator):
     """Remeha Home update coordinator."""
 
-    def __init__(self, hass: HomeAssistantType, api: RemehaHomeAPI) -> None:
+    def __init__(self, hass: HomeAssistant, api: RemehaHomeAPI) -> None:
         """Initialize Remeha Home update coordinator."""
         super().__init__(
             hass,
@@ -43,8 +44,9 @@ class RemehaHomeUpdateCoordinator(DataUpdateCoordinator):
         try:
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
-            async with async_timeout.timeout(30):
+            async with asyncio.timeout(30):
                 data = await self.api.async_get_dashboard()
+                _LOGGER.debug("Requested dashboard information: %s", data)
         except ClientResponseError as err:
             # Raising ConfigEntryAuthFailed will cancel future updates
             # and start a config flow with SOURCE_REAUTH (async_step_reauth)
@@ -62,10 +64,10 @@ class RemehaHomeUpdateCoordinator(DataUpdateCoordinator):
 
             # Request appliance technical information the first time it is discovered
             if appliance_id not in self.technical_info:
-                self.technical_info[
-                    appliance_id
-                ] = await self.api.async_get_appliance_technical_information(
-                    appliance_id
+                self.technical_info[appliance_id] = (
+                    await self.api.async_get_appliance_technical_information(
+                        appliance_id
+                    )
                 )
                 _LOGGER.debug(
                     "Requested technical information for appliance %s: %s",
@@ -91,9 +93,9 @@ class RemehaHomeUpdateCoordinator(DataUpdateCoordinator):
                     )
 
                     if len(consumption_data["data"]) > 0:
-                        self.appliance_consumption_data[
-                            appliance_id
-                        ] = consumption_data["data"][0]
+                        self.appliance_consumption_data[appliance_id] = (
+                            consumption_data["data"][0]
+                        )
                     else:
                         _LOGGER.warning(
                             "No consumption data found for appliance %s", appliance_id
